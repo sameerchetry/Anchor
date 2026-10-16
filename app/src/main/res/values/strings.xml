@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">Study Mode</string>
+    <string name="accessibility_service_description">Detects restricted apps during an active study session.</string>
 </resources>

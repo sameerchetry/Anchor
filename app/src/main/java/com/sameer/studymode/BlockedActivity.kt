@@ -1,9 +1,11 @@
 
 package com.sameer.studymode
 
-import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
@@ -20,8 +22,30 @@ import androidx.compose.ui.unit.dp
 
 class BlockedActivity : ComponentActivity() {
 
+    private val handler = Handler(Looper.getMainLooper())
+
+    private val returnHomeRunnable = Runnable {
+        returnToHome()
+    }
+    override fun onStart() {
+        super.onStart()
+        Log.d("StudyModeBlocked", "BLOCKED SCREEN STARTED")
+    }
+
+    override fun onResume() {
+        super.onResume()
+        Log.d("StudyModeBlocked", "BLOCKED SCREEN VISIBLE")
+    }
+
+    override fun onDestroy() {
+        Log.d("StudyModeBlocked", "BLOCKED SCREEN DESTROYED")
+        handler.removeCallbacks(returnHomeRunnable)
+        super.onDestroy()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        Log.e("StudyModeBlocked", "onCreate() reached")
 
         setContent {
             MaterialTheme {
@@ -48,17 +72,7 @@ class BlockedActivity : ComponentActivity() {
                         )
 
                         Button(
-                            onClick = {
-                                val homeIntent = Intent(
-                                    Intent.ACTION_MAIN
-                                ).apply {
-                                    addCategory(Intent.CATEGORY_HOME)
-                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                }
-
-                                startActivity(homeIntent)
-                                finish()
-                            },
+                            onClick = { returnToHome() },
                             modifier = Modifier.padding(top = 24.dp)
                         ) {
                             Text("Return to Home")
@@ -67,5 +81,20 @@ class BlockedActivity : ComponentActivity() {
                 }
             }
         }
+
+        handler.postDelayed(returnHomeRunnable, 1500L)
     }
+
+    private fun returnToHome() {
+        handler.removeCallbacks(returnHomeRunnable)
+
+        val homeIntent = Intent(Intent.ACTION_MAIN).apply {
+            addCategory(Intent.CATEGORY_HOME)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+
+        startActivity(homeIntent)
+        finish()
+    }
+
 }
