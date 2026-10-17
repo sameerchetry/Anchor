@@ -3,10 +3,9 @@ package com.sameer.studymode
 
 import android.content.Intent
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import android.util.Log
 import androidx.activity.ComponentActivity
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -22,30 +21,20 @@ import androidx.compose.ui.unit.dp
 
 class BlockedActivity : ComponentActivity() {
 
-    private val handler = Handler(Looper.getMainLooper())
-
-    private val returnHomeRunnable = Runnable {
-        returnToHome()
-    }
-    override fun onStart() {
-        super.onStart()
-        Log.d("StudyModeBlocked", "BLOCKED SCREEN STARTED")
-    }
-
-    override fun onResume() {
-        super.onResume()
-        Log.d("StudyModeBlocked", "BLOCKED SCREEN VISIBLE")
-    }
-
-    override fun onDestroy() {
-        Log.d("StudyModeBlocked", "BLOCKED SCREEN DESTROYED")
-        handler.removeCallbacks(returnHomeRunnable)
-        super.onDestroy()
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        Log.e("StudyModeBlocked", "onCreate() reached")
+
+        Log.d("StudyModeBlocked", "Blocking screen created")
+
+        // Prevent the Back button from dismissing the blocking screen.
+        onBackPressedDispatcher.addCallback(
+            this,
+            object : OnBackPressedCallback(true) {
+                override fun handleOnBackPressed() {
+                    Log.d("StudyModeBlocked", "Back press blocked")
+                }
+            }
+        )
 
         setContent {
             MaterialTheme {
@@ -81,13 +70,14 @@ class BlockedActivity : ComponentActivity() {
                 }
             }
         }
+    }
 
-        handler.postDelayed(returnHomeRunnable, 1500L)
+    override fun onResume() {
+        super.onResume()
+        Log.d("StudyModeBlocked", "Blocking screen visible")
     }
 
     private fun returnToHome() {
-        handler.removeCallbacks(returnHomeRunnable)
-
         val homeIntent = Intent(Intent.ACTION_MAIN).apply {
             addCategory(Intent.CATEGORY_HOME)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -96,5 +86,4 @@ class BlockedActivity : ComponentActivity() {
         startActivity(homeIntent)
         finish()
     }
-
 }
