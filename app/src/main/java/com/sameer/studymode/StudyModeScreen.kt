@@ -1,3 +1,4 @@
+
 package com.sameer.studymode
 
 import android.content.Intent
@@ -7,11 +8,15 @@ import android.graphics.drawable.Drawable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.res.painterResource
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -19,10 +24,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.background
 import kotlinx.coroutines.delay
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 
 @Composable
 internal fun StudyModeScreen(
@@ -119,26 +122,99 @@ internal fun StudyModeScreen(
         mutableStateOf<List<InstalledApp>>(emptyList())
     }
 
-    var showStopConfirm by remember { mutableStateOf(false) }
+    // Stop-protection state.
+    var showStopConfirm by remember {
+        mutableStateOf(false)
+    }
 
     var stopPhase by remember {
-        mutableStateOf(prefs.getString("stop_phase", "") ?: "")
+        mutableStateOf(
+            prefs.getString("stop_phase", "") ?: ""
+        )
     }
 
     var stopDeadline by remember {
-        mutableStateOf(prefs.getLong("stop_deadline", 0L))
+        mutableStateOf(
+            prefs.getLong("stop_deadline", 0L)
+        )
     }
 
     var stopQuestion by remember {
-        mutableStateOf(prefs.getString("stop_question", "") ?: "")
+        mutableStateOf(
+            prefs.getString("stop_question", "") ?: ""
+        )
     }
 
     var stopCorrectAnswer by remember {
-        mutableStateOf(prefs.getInt("stop_answer", 0))
+        mutableStateOf(
+            prefs.getInt("stop_answer", 0)
+        )
     }
 
-    var stopUserAnswer by remember { mutableStateOf("") }
-    var stopSeconds by remember { mutableStateOf(0) }
+    var stopUserAnswer by remember {
+        mutableStateOf("")
+    }
+
+    var stopSeconds by remember {
+        mutableStateOf(0)
+    }
+
+    var stopAnswerError by remember {
+        mutableStateOf(false)
+    }
+
+    var stopAnswerCorrect by remember {
+        mutableStateOf(false)
+    }
+
+    // Stop the session and clear any pending protection phase.
+    // Declared before the effects so the final countdown can call it.
+    fun stopSession() {
+        if (studyModeActive) {
+            saveNoteSnapshot(prefs, afterStudyNote)
+        }
+
+        studyModeActive = false
+        remainingMillis = 0L
+
+        stopPhase = ""
+        stopDeadline = 0L
+        stopQuestion = ""
+        stopCorrectAnswer = 0
+        stopUserAnswer = ""
+        stopSeconds = 0
+        stopAnswerError = false
+        stopAnswerCorrect = false
+
+        prefs.edit()
+            .putBoolean(KEY_SESSION_ACTIVE, false)
+            .remove("stop_phase")
+            .remove("stop_deadline")
+            .remove("stop_question")
+            .remove("stop_answer")
+            .apply()
+
+        historyRefresh++
+    }
+
+    // Cancel the stop request and return to the active session.
+    fun cancelStopRequest() {
+        stopPhase = ""
+        stopDeadline = 0L
+        stopQuestion = ""
+        stopCorrectAnswer = 0
+        stopUserAnswer = ""
+        stopSeconds = 0
+        stopAnswerError = false
+        stopAnswerCorrect = false
+
+        prefs.edit()
+            .remove("stop_phase")
+            .remove("stop_deadline")
+            .remove("stop_question")
+            .remove("stop_answer")
+            .apply()
+    }
 
     // Discover installed apps and initialize the default selection.
     LaunchedEffect(Unit) {
@@ -215,7 +291,7 @@ internal fun StudyModeScreen(
         }
     }
 
-    // Update the countdown and finish expired sessions.
+    // Update the normal session countdown and finish expired sessions.
     LaunchedEffect(studyModeActive, sessionEndMillis) {
         while (studyModeActive) {
             remainingMillis = (
@@ -239,6 +315,70 @@ internal fun StudyModeScreen(
         }
     }
 
+    // Resume stop-protection phases using their saved deadlines.
+    LaunchedEffect(
+        stopPhase,
+        stopDeadline,
+        studyModeActive
+    ) {
+        if (
+            studyModeActive &&
+            stopPhase in listOf("wait30", "wrong10", "final10")
+        ) {
+            while (true) {
+                val secondsLeft = (
+                        (
+                                stopDeadline -
+                                        System.currentTimeMillis() +
+                                        999L
+                                ) / 1_000L
+                        ).toInt().coerceAtLeast(0)
+
+                stopSeconds = secondsLeft
+
+                if (secondsLeft <= 0) {
+                    when (stopPhase) {
+                        "wait30", "wrong10" -> {
+                            val question =
+                                StopProtection.generateQuestion()
+
+                            stopQuestion = question.text
+                            stopCorrectAnswer = question.answer
+                            stopUserAnswer = ""
+                            stopAnswerError = false
+                            stopAnswerCorrect = false
+
+                            stopPhase = "challenge"
+                            stopDeadline = 0L
+                            stopSeconds = 0
+
+                            prefs.edit()
+                                .putString("stop_phase", "challenge")
+                                .putString(
+                                    "stop_question",
+                                    question.text
+                                )
+                                .putInt(
+                                    "stop_answer",
+                                    question.answer
+                                )
+                                .putLong("stop_deadline", 0L)
+                                .apply()
+                        }
+
+                        "final10" -> {
+                            stopSession()
+                        }
+                    }
+
+                    break
+                }
+
+                delay(250L)
+            }
+        }
+    }
+
     fun startSession() {
         val end = nextOccurrenceMillis(endHour, endMinute)
 
@@ -249,7 +389,15 @@ internal fun StudyModeScreen(
                 end - sessionStartMillis
                 ).coerceAtLeast(0L)
 
-        studyModeActive = true
+        // Clear stale stop-protection state when starting a session.
+        stopPhase = ""
+        stopDeadline = 0L
+        stopQuestion = ""
+        stopCorrectAnswer = 0
+        stopUserAnswer = ""
+        stopSeconds = 0
+        stopAnswerError = false
+        stopAnswerCorrect = false
 
         prefs.edit()
             .putInt(KEY_END_HOUR, endHour)
@@ -257,49 +405,42 @@ internal fun StudyModeScreen(
             .putLong(KEY_SESSION_START, sessionStartMillis)
             .putLong(KEY_SESSION_END, end)
             .putBoolean(KEY_SESSION_ACTIVE, true)
+            .remove("stop_phase")
+            .remove("stop_deadline")
+            .remove("stop_question")
+            .remove("stop_answer")
             .apply()
+
+        studyModeActive = true
     }
 
-        fun stopSession() {
-            if (studyModeActive) {
-                saveNoteSnapshot(prefs, afterStudyNote)
-            }
+    fun addTask() {
+        val title = newTaskTitle.trim()
+        val points = newTaskPoints.toIntOrNull()
+            ?.coerceIn(1, 100)
+            ?: 1
 
-            studyModeActive = false
-            remainingMillis = 0L
-
-            prefs.edit()
-                .putBoolean(KEY_SESSION_ACTIVE, false)
-                .apply()
-
-            historyRefresh++
-        }
-
-        fun addTask() {
-            val title = newTaskTitle.trim()
-            val points = newTaskPoints.toIntOrNull()
-                ?.coerceIn(1, 100)
-                ?: 1
-
-            if (title.isNotEmpty()) {
-                studyTasks.add(
-                    StudyTask(
-                        id = System.currentTimeMillis(),
-                        title = title,
-                        points = points
-                    )
+        if (title.isNotEmpty()) {
+            studyTasks.add(
+                StudyTask(
+                    id = System.currentTimeMillis(),
+                    title = title,
+                    points = points
                 )
+            )
 
-                saveStudyTasks(prefs, studyTasks)
+            saveStudyTasks(prefs, studyTasks)
 
-                newTaskTitle = ""
-                newTaskPoints = "1"
-            }
+            newTaskTitle = ""
+            newTaskPoints = "1"
         }
+    }
 
-        // Main screen cards.
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
+    // Main screen cards.
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background),
         contentPadding = PaddingValues(
             horizontal = 16.dp,
             vertical = 18.dp
@@ -460,6 +601,7 @@ internal fun StudyModeScreen(
         )
     }
 
+    // Confirm the user's intention to stop.
     if (showStopConfirm) {
         AlertDialog(
             onDismissRequest = {
@@ -480,13 +622,22 @@ internal fun StudyModeScreen(
                     onClick = {
                         showStopConfirm = false
                         stopUserAnswer = ""
+                        stopQuestion = ""
+                        stopCorrectAnswer = 0
+                        stopAnswerError = false
+                        stopAnswerCorrect = false
+
                         stopPhase = "wait30"
                         stopDeadline =
                             System.currentTimeMillis() + 30_000L
 
+                        stopSeconds = 30
+
                         prefs.edit()
                             .putString("stop_phase", stopPhase)
                             .putLong("stop_deadline", stopDeadline)
+                            .remove("stop_question")
+                            .remove("stop_answer")
                             .apply()
                     }
                 ) {
@@ -502,6 +653,196 @@ internal fun StudyModeScreen(
                     Text("No, go back")
                 }
             }
+        )
+    }
+
+    // Initial 30-second waiting-period dialog.
+    if (stopPhase == "wait30" && studyModeActive) {
+        AlertDialog(
+            onDismissRequest = {},
+            title = {
+                androidx.compose.foundation.layout.Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement =
+                        androidx.compose.foundation.layout.Arrangement.SpaceBetween,
+                    verticalAlignment =
+                        androidx.compose.ui.Alignment.CenterVertically
+                ) {
+                    Text("Stop request")
+
+                    androidx.compose.material3.IconButton(
+                        onClick = { cancelStopRequest() }
+                    ) {
+                        Text("×")
+                    }
+                }
+            },
+            text = {
+                androidx.compose.foundation.layout.Column {
+                    Text(
+                        "You can cancel the stop request using ×."
+                    )
+
+                    Text("Continuing in $stopSeconds seconds")
+                }
+            },
+            confirmButton = {},
+            dismissButton = {}
+        )
+    }
+
+    // Arithmetic challenge dialog.
+    if (stopPhase == "challenge" && studyModeActive) {
+        AlertDialog(
+            onDismissRequest = {},
+            title = {
+                androidx.compose.foundation.layout.Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement =
+                        androidx.compose.foundation.layout.Arrangement.SpaceBetween,
+                    verticalAlignment =
+                        androidx.compose.ui.Alignment.CenterVertically
+                ) {
+                    Text("Arithmetic challenge")
+
+                    androidx.compose.material3.IconButton(
+                        onClick = { cancelStopRequest() }
+                    ) {
+                        Text("×")
+                    }
+                }
+            },
+            text = {
+                androidx.compose.foundation.layout.Column {
+                    Text("Solve this question:")
+
+                    Text(
+                        text = stopQuestion,
+                        style = MaterialTheme.typography.headlineSmall
+                    )
+
+                    androidx.compose.material3.OutlinedTextField(
+                        value = stopUserAnswer,
+                        onValueChange = { value ->
+                            stopUserAnswer = value
+                                .filter { it.isDigit() }
+                                .take(6)
+
+                            stopAnswerError = false
+                            stopAnswerCorrect = false
+                        },
+                        label = { Text("Your answer") },
+                        singleLine = true
+                    )
+
+                    if (stopAnswerError) {
+                        Text(
+                            "Incorrect answer. Wait 10 seconds, " +
+                                    "then try a new question."
+                        )
+                    }
+
+                    if (stopAnswerCorrect) {
+                        Text(
+                            "Correct answer! The session will " +
+                                    "end in 10 seconds."
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (
+                            StopProtection.isCorrect(
+                                stopUserAnswer,
+                                stopCorrectAnswer
+                            )
+                        ) {
+                            // Correct answer: begin final countdown.
+                            stopAnswerCorrect = true
+                            stopAnswerError = false
+
+                            stopPhase = "final10"
+                            stopDeadline =
+                                System.currentTimeMillis() + 10_000L
+                            stopSeconds = 10
+
+                            prefs.edit()
+                                .putString("stop_phase", "final10")
+                                .putLong("stop_deadline", stopDeadline)
+                                .apply()
+                        } else {
+                            // Wrong answer: begin the 10-second penalty.
+                            stopAnswerError = true
+                            stopAnswerCorrect = false
+
+                            stopPhase = "wrong10"
+                            stopDeadline =
+                                System.currentTimeMillis() + 10_000L
+                            stopSeconds = 10
+
+                            prefs.edit()
+                                .putString("stop_phase", "wrong10")
+                                .putLong("stop_deadline", stopDeadline)
+                                .apply()
+                        }
+                    }
+                ) {
+                    Text("Check answer")
+                }
+            },
+            dismissButton = {}
+        )
+    }
+
+    // Visible countdown after a wrong answer or a correct answer.
+    if (
+        (stopPhase == "wrong10" || stopPhase == "final10") &&
+        studyModeActive
+    ) {
+        AlertDialog(
+            onDismissRequest = {},
+            title = {
+                androidx.compose.foundation.layout.Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement =
+                        androidx.compose.foundation.layout.Arrangement.SpaceBetween,
+                    verticalAlignment =
+                        androidx.compose.ui.Alignment.CenterVertically
+                ) {
+                    Text(
+                        if (stopPhase == "wrong10") {
+                            "Incorrect answer"
+                        } else {
+                            "Final countdown"
+                        }
+                    )
+
+                    androidx.compose.material3.IconButton(
+                        onClick = { cancelStopRequest() }
+                    ) {
+                        Text("×")
+                    }
+                }
+            },
+            text = {
+                androidx.compose.foundation.layout.Column {
+                    if (stopPhase == "wrong10") {
+                        Text(
+                            "A new question will appear in " +
+                                    "$stopSeconds seconds."
+                        )
+                    } else {
+                        Text(
+                            "Your study session will end in " +
+                                    "$stopSeconds seconds."
+                        )
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {}
         )
     }
 }

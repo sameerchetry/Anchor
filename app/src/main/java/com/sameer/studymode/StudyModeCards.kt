@@ -21,6 +21,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -33,6 +34,7 @@ internal fun StudyModeHeader() {
     ) {
         Text(
             text = "STUDY MODE",
+            color = Color(0xFFADAAAB),
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold
         )
