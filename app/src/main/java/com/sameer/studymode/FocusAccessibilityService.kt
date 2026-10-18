@@ -20,28 +20,30 @@ class FocusAccessibilityService : AccessibilityService() {
 
     override fun onServiceConnected() {
         super.onServiceConnected()
-        Log.d(TAG, "SERVICE CONNECTED")
+        Log.d(TAG, "Accessibility service connected")
+        Log.d(TAG, "Study Mode package: ${applicationContext.packageName}")
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
 
-        // Recheck when the foreground window changes.
-        // Do not rely on scroll events to keep the blocking screen visible.
         if (event.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
             return
         }
 
+
         val foregroundPackage = event.packageName?.toString() ?: return
+        val ownPackage = applicationContext.packageName
 
-        Log.d(TAG, "Window changed: $foregroundPackage")
+        Log.d(TAG, "Foreground package: $foregroundPackage")
 
-        // Ignore Study Mode's own blocking screen.
-        if (foregroundPackage == packageName) {
+// Study Mode must never block itself.
+        if (foregroundPackage == ownPackage) {
+            Log.d(TAG, "Study Mode exempted from blocking")
             return
         }
 
-        // Do not block Android system interfaces or common launchers.
+
         val systemPackages = setOf(
             "com.android.systemui",
             "com.android.settings",
@@ -57,34 +59,35 @@ class FocusAccessibilityService : AccessibilityService() {
             return
         }
 
-        val preferences = getSharedPreferences(
+        val prefs = getSharedPreferences(
             PREFS_NAME,
             MODE_PRIVATE
         )
 
-        if (!preferences.getBoolean(KEY_SESSION_ACTIVE, false)) {
+        if (!prefs.getBoolean(KEY_SESSION_ACTIVE, false)) {
             return
         }
 
-        val sessionEnd = preferences.getLong(KEY_SESSION_END, 0L)
+        val sessionEnd = prefs.getLong(KEY_SESSION_END, 0L)
 
-        if (sessionEnd <= 0L ||
+        if (
+            sessionEnd <= 0L ||
             System.currentTimeMillis() >= sessionEnd
         ) {
-            preferences.edit()
+            prefs.edit()
                 .putBoolean(KEY_SESSION_ACTIVE, false)
                 .apply()
 
-            Log.d(TAG, "Session expired; blocking disabled")
+            Log.d(TAG, "Session expired")
             return
         }
 
-        if (!preferences.getBoolean(KEY_HAS_APP_SELECTION, false)) {
-            Log.w(TAG, "No saved app selection")
+        if (!prefs.getBoolean(KEY_HAS_APP_SELECTION, false)) {
+            Log.w(TAG, "App selection has not been saved")
             return
         }
 
-        val allowedPackages = preferences.getStringSet(
+        val allowedPackages = prefs.getStringSet(
             KEY_ALLOWED_PACKAGES,
             emptySet()
         ) ?: emptySet()
@@ -94,9 +97,9 @@ class FocusAccessibilityService : AccessibilityService() {
             return
         }
 
-        Log.w(TAG, "BLOCKING APP: $foregroundPackage")
+        Log.d(TAG, "Blocking restricted app: $foregroundPackage")
 
-        val blockingIntent = Intent(
+        val intent = Intent(
             this,
             BlockedActivity::class.java
         ).apply {
@@ -109,9 +112,9 @@ class FocusAccessibilityService : AccessibilityService() {
         }
 
         try {
-            startActivity(blockingIntent)
+            startActivity(intent)
         } catch (exception: Exception) {
-            Log.e(TAG, "Failed to launch BlockedActivity", exception)
+            Log.e(TAG, "Could not launch blocking screen", exception)
         }
     }
 

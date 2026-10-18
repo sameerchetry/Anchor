@@ -1,0 +1,26 @@
+
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Outer focus ring -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#F1F2F4"
+        android:strokeWidth="5"
+        android:pathData="M54,22 C71.7,22 86,36.3 86,54 C86,71.7 71.7,86 54,86 C36.3,86 22,71.7 22,54 C22,36.3 36.3,22 54,22 Z" />
+
+    <!-- Inner focus ring -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#6C8DFF"
+        android:strokeWidth="4"
+        android:pathData="M54,38 C62.8,38 70,45.2 70,54 C70,62.8 62.8,70 54,70 C45.2,70 38,62.8 38,54 C38,45.2 45.2,38 54,38 Z" />
+
+    <!-- Center point -->
+    <path
+        android:fillColor="#6C8DFF"
+        android:pathData="M54,48 C57.3,48 60,50.7 60,54 C60,57.3 57.3,60 54,60 C50.7,60 48,57.3 48,54 C48,50.7 50.7,48 54,48 Z" />
+</vector>
