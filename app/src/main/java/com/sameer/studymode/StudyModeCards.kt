@@ -33,7 +33,7 @@ internal fun StudyModeHeader() {
         verticalArrangement = Arrangement.spacedBy(5.dp)
     ) {
         Text(
-            text = "STUDY MODE",
+            text = "Anchor",
             color = Color(0xFFFFFFFF),
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold
