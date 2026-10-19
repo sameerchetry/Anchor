@@ -130,6 +130,7 @@ internal fun TimePickerDialog(
 internal fun AllowedAppsDialog(
     apps: List<InstalledApp>,
     allowedPackages: Set<String>,
+    sessionActive: Boolean,
     onToggle: (InstalledApp, Boolean) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -143,6 +144,15 @@ internal fun AllowedAppsDialog(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+
+                if (sessionActive) {
+                    Text(
+                        text = "Allowed apps are locked until your study session ends.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(top = 6.dp)
+                    )
+                }
 
                 LazyColumn(
                     modifier = Modifier.heightIn(max = 420.dp)
@@ -177,8 +187,11 @@ internal fun AllowedAppsDialog(
 
                             Checkbox(
                                 checked = app.packageName in allowedPackages,
-                                onCheckedChange = {
-                                    onToggle(app, it)
+                                enabled = !sessionActive,
+                                onCheckedChange = { checked ->
+                                    if (!sessionActive) {
+                                        onToggle(app, checked)
+                                    }
                                 }
                             )
                         }
