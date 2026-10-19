@@ -34,7 +34,7 @@ internal fun StudyModeHeader() {
     ) {
         Text(
             text = "STUDY MODE",
-            color = Color(0xFFADAAAB),
+            color = Color(0xFFFFFFFF),
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold
         )
