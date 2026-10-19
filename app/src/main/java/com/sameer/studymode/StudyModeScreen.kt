@@ -566,6 +566,7 @@ internal fun StudyModeScreen(
         AllowedAppsDialog(
             apps = installedApps,
             allowedPackages = allowedPackages.toSet(),
+            sessionActive = studyModeActive,
             onToggle = { app, allowed ->
                 togglePackage(
                     prefs = prefs,
