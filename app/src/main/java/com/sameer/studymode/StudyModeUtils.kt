@@ -63,6 +63,14 @@ internal fun togglePackage(
     packageName: String,
     allowed: Boolean
 ) {
+    // Reject changes while a study session is still active.
+    val sessionActive = prefs.getBoolean(KEY_SESSION_ACTIVE, false)
+    val sessionEnd = prefs.getLong(KEY_SESSION_END, 0L)
+
+    if (sessionActive && sessionEnd > System.currentTimeMillis()) {
+        return
+    }
+
     if (allowed) {
         if (packageName !in allowedPackages) {
             allowedPackages.add(packageName)
